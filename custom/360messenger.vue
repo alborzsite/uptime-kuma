@@ -1,16 +1,5 @@
 <template>
     <div class="mb-3">
-        <label for="360messenger-api-url" class="form-label">{{ $t("API URL") }}</label>
-        <input 
-            id="360messenger-api-url" 
-            v-model="$parent.notification.messenger360ApiUrl" 
-            placeholder="https://api.360messenger.com/" 
-            type="text" 
-            class="form-control"
-        >
-    </div>
-
-    <div class="mb-3">
         <label for="360messenger-auth-token" class="form-label">{{ $t("Token") }}</label>
         <HiddenInput 
             id="360messenger-auth-token" 

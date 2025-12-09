@@ -25,7 +25,7 @@ class messenger360 extends NotificationProvider {
                 "text": msg,
             };
 
-            let url = (notification.messenger360ApiUrl || "https://api.360messenger.com/").replace(/([^/])\/+$/, "$1") + "/v2/sendMessage";
+            let url = "https://api.360messenger.com/v2/sendMessage";
 
             await axios.post(url, data, config);
 
