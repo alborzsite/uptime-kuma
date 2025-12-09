@@ -1,118 +1,101 @@
-ARG BASE_IMAGE=louislam/uptime-kuma:base2
+FROM node:20-bookworm-slim AS base
 
-############################################
-# Build in Golang
-# Run npm run build-healthcheck-armv7 in the host first, otherwise it will be super slow where it is building the armv7 healthcheck
-# Check file: builder-go.dockerfile
-############################################
-FROM louislam/uptime-kuma:builder-go AS build_healthcheck
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    chromium fonts-indic fontconfig fonts-noto fonts-noto-cjk \
+    fonts-noto-color-emoji locales dumb-init curl ca-certificates \
+    python3 build-essential git \
+    && rm -rf /var/lib/apt/lists/* && \
+    chmod 755 /usr/bin/dumb-init
 
-############################################
-# Build in Node.js
-############################################
-FROM louislam/uptime-kuma:base2 AS build
-USER node
+RUN echo "en_US.UTF-8 UTF-8" > /etc/locale.gen && locale-gen en_US.UTF-8
+
+ENV LANG=en_US.UTF-8 \
+    LANGUAGE=en_US:en \
+    LC_ALL=en_US.UTF-8 \
+    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=1 \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+
+FROM base AS build
 WORKDIR /app
 
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=1
-COPY --chown=node:node .npmrc .npmrc
-COPY --chown=node:node package.json package.json
-COPY --chown=node:node package-lock.json package-lock.json
-RUN npm ci --omit=dev
+COPY package.json package-lock.json* ./
+RUN echo "legacy-peer-deps=true" > .npmrc
+RUN npm ci || npm install
+
 COPY . .
-COPY --chown=node:node --from=build_healthcheck /app/extra/healthcheck /app/extra/healthcheck
-RUN mkdir ./data
 
-############################################
-# ⭐ Main Image
-############################################
-FROM $BASE_IMAGE AS release
+# DEBUG: چک کردن فایل‌های custom قبل از کپی
+RUN echo "=== Checking custom files ===" && \
+    if [ -d "custom" ]; then \
+        ls -la custom/; \
+        echo "=== Custom files found ==="; \
+    else \
+        echo "=== No custom directory ==="; \
+    fi
+
+# کپی فایل‌های سفارشی
+RUN if [ -d "custom" ]; then \
+    echo "Copying 360messenger.js..." && \
+    cp -v custom/360messenger.js ./server/notification-providers/ 2>/dev/null || true; \
+    echo "Copying 360messenger.vue..." && \
+    cp -v custom/360messenger.vue ./src/components/notifications/ 2>/dev/null || true; \
+    echo "Copying index.js..." && \
+    cp -v custom/index.js ./src/components/notifications/index.js 2>/dev/null || true; \
+    echo "Copying notification.js..." && \
+    cp -v custom/notification.js ./server/ 2>/dev/null || true; \
+    fi
+
+# DEBUG: بررسی محتوای فایل‌ها بعد از کپی
+RUN echo "=== Verifying copied files ===" && \
+    echo "--- 360messenger.js class name ---" && \
+    grep "^class" ./server/notification-providers/360messenger.js || echo "File not found" && \
+    echo "--- notification.js require ---" && \
+    grep "messenger360" ./server/notification.js | head -3 || echo "Not found in notification.js" && \
+    echo "--- index.js import ---" && \
+    grep -A1 "360messenger.vue" ./src/components/notifications/index.js || echo "Not found in index.js" && \
+    echo "--- index.js export ---" && \
+    grep "messenger360" ./src/components/notifications/index.js | tail -3 || echo "Not in exports"
+
+# Build
+RUN npm run build && \
+    echo "Build completed. Checking dist folder:" && \
+    ls -lah dist/ && \
+    test -f dist/index.html && \
+    echo "✓ dist/index.html exists"
+
+# بررسی فایل‌های build شده
+RUN echo "=== Checking built assets ===" && \
+    ls -lh dist/assets/*.js | head -5
+
+RUN rm -rf node_modules && \
+    (npm ci --omit=dev || npm install --production)
+
+RUN mkdir -p ./data
+
+FROM base AS release
 WORKDIR /app
 
-LABEL org.opencontainers.image.source="https://github.com/louislam/uptime-kuma"
-
-ENV UPTIME_KUMA_IS_CONTAINER=1
-
-# Copy app files from build layer
-COPY --chown=node:node --from=build /app /app
-
-EXPOSE 3001
-HEALTHCHECK --interval=60s --timeout=30s --start-period=180s --retries=5 CMD extra/healthcheck
-ENTRYPOINT ["/usr/bin/dumb-init", "--"]
-CMD ["node", "server/server.js"]
-
-############################################
-# Rootless Image
-############################################
-FROM release AS rootless
-USER node
-
-############################################
-# Mark as Nightly
-############################################
-FROM release AS nightly
-RUN npm run mark-as-nightly
-
-FROM nightly AS nightly-rootless
-USER node
-
-############################################
-# Build an image for testing pr
-############################################
-FROM louislam/uptime-kuma:base2 AS pr-test2
-WORKDIR /app
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=1
-
-## Install Git
-RUN apt update \
-    && apt --yes --no-install-recommends install curl \
-    && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
-    && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
-    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
-    && apt update \
-    && apt --yes --no-install-recommends  install git
-
-## Empty the directory, because we have to clone the Git repo.
-RUN rm -rf ./* && chown node /app
-
-USER node
-RUN git config --global user.email "no-reply@no-reply.com"
-RUN git config --global user.name "PR Tester"
-RUN git clone https://github.com/louislam/uptime-kuma.git .
-
-# Hide the warning when running in detached head state
-RUN git config --global advice.detachedHead false
-
-RUN npm ci
-
-EXPOSE 3000 3001
-HEALTHCHECK --interval=60s --timeout=30s --start-period=180s --retries=5 CMD extra/healthcheck
-CMD ["npm", "run", "start-pr-test"]
-
-############################################
-# Upload the artifact to Github
-############################################
-FROM louislam/uptime-kuma:base2 AS upload-artifact
-WORKDIR /
-RUN apt update && \
-    apt --yes install curl file
+ENV UPTIME_KUMA_IS_CONTAINER=1 \
+    NODE_ENV=production
 
 COPY --from=build /app /app
 
-ARG VERSION
-ARG GITHUB_TOKEN
-ARG TARGETARCH
-ARG PLATFORM=debian
-ARG FILE=$PLATFORM-$TARGETARCH-$VERSION.tar.gz
-ARG DIST=dist.tar.gz
+# DEBUG نهایی
+RUN echo "=== Final verification ===" && \
+    echo "Backend file:" && \
+    ls -lh /app/server/notification-providers/360messenger.js && \
+    grep "class messenger360" /app/server/notification-providers/360messenger.js && \
+    echo "notification.js:" && \
+    grep "messenger360" /app/server/notification.js | head -2 && \
+    echo "dist exists:" && \
+    ls -lh /app/dist/index.html && \
+    echo "✓ All verified"
 
-RUN chmod +x /app/extra/upload-github-release-asset.sh
+EXPOSE 3001
 
-# Full Build
-# RUN tar -zcvf $FILE app
-# RUN /app/extra/upload-github-release-asset.sh github_api_token=$GITHUB_TOKEN owner=louislam repo=uptime-kuma tag=$VERSION filename=$FILE
+HEALTHCHECK --interval=60s --timeout=30s --start-period=180s --retries=5 \
+    CMD node extra/healthcheck || exit 1
 
-# Dist only
-RUN cd /app && tar -zcvf $DIST dist
-RUN /app/extra/upload-github-release-asset.sh github_api_token=$GITHUB_TOKEN owner=louislam repo=uptime-kuma tag=$VERSION filename=/app/$DIST
-
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
+CMD ["node", "server/server.js"]
