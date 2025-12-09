@@ -70,6 +70,7 @@ import Splunk from "./Splunk.vue";
 import SpugPush from "./SpugPush.vue";
 import SevenIO from "./SevenIO.vue";
 import Whapi from "./Whapi.vue";
+import messenger360 from "./360messenger.vue";
 import WAHA from "./WAHA.vue";
 import Evolution from "./Evolution.vue";
 import Cellsynt from "./Cellsynt.vue";
@@ -159,6 +160,7 @@ const NotificationFormList = {
     "ZohoCliq": ZohoCliq,
     "SevenIO": SevenIO,
     "whapi": Whapi,
+    "messenger360": messenger360,
     "evolution": Evolution,
     "notifery": Notifery,
     "waha": WAHA,

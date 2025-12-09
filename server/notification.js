@@ -70,6 +70,7 @@ const ServerChan = require("./notification-providers/serverchan");
 const ZohoCliq = require("./notification-providers/zoho-cliq");
 const SevenIO = require("./notification-providers/sevenio");
 const Whapi = require("./notification-providers/whapi");
+const messenger360 = require("./notification-providers/360messenger");
 const WAHA = require("./notification-providers/waha");
 const Evolution = require("./notification-providers/evolution");
 const GtxMessaging = require("./notification-providers/gtx-messaging");
@@ -170,6 +171,7 @@ class Notification {
             new ZohoCliq(),
             new SevenIO(),
             new Whapi(),
+            new messenger360(),
             new WAHA(),
             new Evolution(),
             new GtxMessaging(),

@@ -167,6 +167,7 @@ export default {
                 "ZohoCliq": "ZohoCliq",
                 "SevenIO": "SevenIO",
                 "whapi": "WhatsApp (Whapi)",
+                "messenger360": "WhatsApp (360messenger)",
                 "evolution": "WhatsApp (Evolution)",
                 "waha": "WhatsApp (WAHA)",
                 "gtxmessaging": "GtxMessaging",
