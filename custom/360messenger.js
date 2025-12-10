@@ -20,16 +20,49 @@ class messenger360 extends NotificationProvider {
             };
             config = this.getAxiosConfigWithProxy(config);
 
-            let data = {
-                "phonenumber": notification.messenger360Recipient,
-                "text": msg,
-            };
+            const hasGroupId = notification.messenger360GroupId && notification.messenger360GroupId.trim() !== "";
+            const hasRecipient = notification.messenger360Recipient && notification.messenger360Recipient.trim() !== "";
 
-            let url = "https://api.360messenger.com/v2/sendMessage";
+            // Send to both if both are provided
+            if (hasGroupId && hasRecipient) {
+                // Send to individual recipient
+                let recipientData = {
+                    "phonenumber": notification.messenger360Recipient,
+                    "text": msg,
+                };
+                await axios.post("https://api.360messenger.com/v2/sendMessage", recipientData, config);
 
-            await axios.post(url, data, config);
+                // Send to group
+                let groupData = {
+                    "groupId": notification.messenger360GroupId,
+                    "text": msg,
+                };
+                await axios.post("https://api.360messenger.com/v2/sendGroup", groupData, config);
 
-            return okMsg;
+                return okMsg + " (Sent to both recipient and group)";
+            } 
+            // Send to group only
+            else if (hasGroupId) {
+                let data = {
+                    "groupId": notification.messenger360GroupId,
+                    "text": msg,
+                };
+                await axios.post("https://api.360messenger.com/v2/sendGroup", data, config);
+                return okMsg + " (Sent to group)";
+            } 
+            // Send to individual recipient only
+            else if (hasRecipient) {
+                let data = {
+                    "phonenumber": notification.messenger360Recipient,
+                    "text": msg,
+                };
+                await axios.post("https://api.360messenger.com/v2/sendMessage", data, config);
+                return okMsg + " (Sent to recipient)";
+            } 
+            else {
+                throw new Error("No recipient or group specified");
+            }
+
         } catch (error) {
             this.throwGeneralAxiosError(error);
         }
