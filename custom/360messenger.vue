@@ -26,8 +26,8 @@
         <div class="form-text">{{ $t("wayToWrite360messengerRecipient", ["00117612345678", "00117612345678@s.whatsapp.net", "123456789012345678@g.us"]) }}</div>
     </div>
 
-    <!-- Checkbox to enable/disable Combobox -->
-    <div class="mb-3 form-check">
+    <!-- Switch to enable/disable Combobox -->
+    <div class="mb-3 form-check form-switch">
         <input 
             id="360messenger-enable-options" 
             v-model="isOptionsEnabled" 
@@ -39,7 +39,7 @@
         </label>
     </div>
 
-    <!-- Combobox that is enabled/disabled based on Checkbox -->
+    <!-- Combobox that is enabled/disabled based on Switch -->
     <div class="mb-3">
         <label for="360messenger-group-list" class="form-label">Group Chat</label>
         <select 
@@ -85,7 +85,7 @@ export default {
         };
     },
     watch: {
-        // When checkbox is enabled, fetch groups from API
+        // When switch is enabled, fetch groups from API
         isOptionsEnabled(newValue, oldValue) {
             if (newValue) {
                 this.fetchGroups();
